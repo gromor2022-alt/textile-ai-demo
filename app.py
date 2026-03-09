@@ -5,14 +5,39 @@ import plotly.express as px
 from datetime import datetime, timedelta
 from openai import OpenAI
 
+# =============================
+# PASSWORD PROTECTION
+# =============================
+
+PASSWORD = "affinexa123"
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+
+    st.title("🔒 Textile AI Demo Access")
+
+    password = st.text_input("Enter Demo Password", type="password")
+
+    if password == PASSWORD:
+        st.session_state.authenticated = True
+        st.rerun()
+    else:
+        st.stop()
+
+# =============================
+# PAGE SETUP
+# =============================
+
 st.set_page_config(page_title="Textile AI Dashboard", layout="wide")
 
 st.title("🧵 Textile Wholesaler AI Dashboard")
 
-st.write("Upload Dataman sales export or load demo data to analyze business performance.")
+st.caption("Enterprise intelligence dashboard for textile wholesalers")
 
 # =============================
-# OpenRouter Client
+# OPENROUTER CLIENT
 # =============================
 
 client = OpenAI(
@@ -21,45 +46,44 @@ client = OpenAI(
 )
 
 # =============================
-# Generate Demo Data
+# DEMO DATA GENERATOR
 # =============================
 
 def generate_demo_data():
 
     customers = [
         "Shree Fabrics","Global Textiles","ABC Exports",
-        "Ravi Traders","Royal Sarees","Kumar Fashion",
-        "Delhi Cloth House","Om Traders","Vikas Garments"
+        "Royal Sarees","Delhi Cloth House","Om Traders",
+        "Vikas Garments","Shiv Textiles"
     ]
 
     products = [
         "Rayon Print","Cotton Lawn","Silk Saree",
-        "Poly Viscose","Chiffon Saree","Denim Fabric",
-        "Banarasi Saree","Dress Material","Linen Fabric"
+        "Banarasi Saree","Denim Fabric",
+        "Chiffon Saree","Dress Material"
     ]
 
     categories = [
-        "Fabric","Fabric","Saree","Fabric","Saree",
-        "Fabric","Saree","Dress Material","Fabric"
+        "Fabric","Fabric","Saree","Saree",
+        "Fabric","Saree","Dress Material"
     ]
 
     rows = []
 
-    start_date = datetime.now() - timedelta(days=180)
+    start = datetime.now() - timedelta(days=180)
 
-    for i in range(800):
+    for i in range(700):
 
-        date = start_date + timedelta(days=np.random.randint(0,180))
+        date = start + timedelta(days=np.random.randint(0,180))
 
         cust = np.random.choice(customers)
 
         p = np.random.randint(0,len(products))
 
         product = products[p]
-
         category = categories[p]
 
-        qty = np.random.randint(10,150)
+        qty = np.random.randint(20,150)
 
         price = np.random.randint(200,800)
 
@@ -68,7 +92,8 @@ def generate_demo_data():
         revenue = qty * price
 
         rows.append([
-            date,cust,product,category,qty,price,cost,revenue
+            date,cust,product,category,
+            qty,price,cost,revenue
         ])
 
     df = pd.DataFrame(rows,columns=[
@@ -78,9 +103,8 @@ def generate_demo_data():
 
     return df
 
-
 # =============================
-# Load Data
+# DATA LOADING
 # =============================
 
 uploaded = st.file_uploader("Upload Dataman Excel Export",type=["xlsx","csv"])
@@ -105,64 +129,41 @@ else:
         df = st.session_state["data"]
 
     else:
-
         st.stop()
-
 
 df["Date"] = pd.to_datetime(df["Date"])
 
 # =============================
-# SALES SUMMARY
+# CEO DASHBOARD (Enterprise look)
 # =============================
 
-st.subheader("📊 Sales Summary")
+st.subheader("📊 CEO Dashboard")
 
-c1,c2,c3,c4 = st.columns(4)
+total_revenue = df["Amount"].sum()
+total_customers = df["Customer"].nunique()
+total_products = df["Product"].nunique()
+total_orders = len(df)
 
-c1.metric("Total Revenue",f"₹{df['Amount'].sum():,.0f}")
+df["Profit"] = df["Amount"] - (df["Quantity"] * df["Cost"])
 
-c2.metric("Customers",df["Customer"].nunique())
+profit = df["Profit"].sum()
 
-c3.metric("Products",df["Product"].nunique())
+c1,c2,c3,c4,c5 = st.columns(5)
 
-c4.metric("Orders",len(df))
-
-
-# =============================
-# TOP CUSTOMERS
-# =============================
-
-st.subheader("🏆 Top Customers")
-
-top_customers = (
-    df.groupby("Customer")["Amount"]
-    .sum()
-    .sort_values(ascending=False)
-    .head(50)
-)
-
-st.dataframe(top_customers)
-
-fig = px.bar(
-    top_customers.reset_index(),
-    x="Customer",
-    y="Amount",
-    title="Top Customer Revenue"
-)
-
-st.plotly_chart(fig,use_container_width=True)
-
+c1.metric("Revenue",f"₹{total_revenue:,.0f}")
+c2.metric("Profit",f"₹{profit:,.0f}")
+c3.metric("Customers",total_customers)
+c4.metric("Products",total_products)
+c5.metric("Orders",total_orders)
 
 # =============================
-# LAST 3 MONTH SALES
+# SALES TREND
 # =============================
 
-st.subheader("📈 Last 3 Months Sales")
-
-recent = df[df["Date"] > df["Date"].max() - pd.DateOffset(months=3)]
+st.subheader("📈 Sales Trend")
 
 monthly = (
-    recent.groupby(recent["Date"].dt.to_period("M"))["Amount"]
+    df.groupby(df["Date"].dt.to_period("M"))["Amount"]
     .sum()
 )
 
@@ -177,9 +178,83 @@ fig = px.line(
 
 st.plotly_chart(fig,use_container_width=True)
 
+# =============================
+# TOP CUSTOMERS
+# =============================
+
+st.subheader("🏆 Top Customers")
+
+top_customers = (
+    df.groupby("Customer")["Amount"]
+    .sum()
+    .sort_values(ascending=False)
+    .head(10)
+)
+
+fig = px.bar(
+    top_customers.reset_index(),
+    x="Customer",
+    y="Amount"
+)
+
+st.plotly_chart(fig,use_container_width=True)
 
 # =============================
-# SLOW MOVING PRODUCTS
+# INVENTORY INTELLIGENCE
+# =============================
+
+st.subheader("📦 Inventory Intelligence")
+
+top_products = (
+    df.groupby("Product")["Quantity"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+st.dataframe(top_products.head(10))
+
+# =============================
+# PROFIT ANALYSIS
+# =============================
+
+st.subheader("💰 Profit Margin Analysis")
+
+profit_products = (
+    df.groupby("Product")["Profit"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+fig = px.bar(
+    profit_products.head(10).reset_index(),
+    x="Product",
+    y="Profit"
+)
+
+st.plotly_chart(fig,use_container_width=True)
+
+# =============================
+# CUSTOMER BUYING PATTERNS
+# =============================
+
+st.subheader("📉 Customer Buying Patterns")
+
+pattern = (
+    df.groupby(["Customer","Category"])["Amount"]
+    .sum()
+    .reset_index()
+)
+
+fig = px.sunburst(
+    pattern,
+    path=["Customer","Category"],
+    values="Amount"
+)
+
+st.plotly_chart(fig,use_container_width=True)
+
+# =============================
+# SLOW PRODUCTS
 # =============================
 
 st.subheader("🐌 Slow Moving Products")
@@ -198,69 +273,6 @@ else:
 
     st.write(list(slow_products))
 
-
-# =============================
-# INVENTORY INTELLIGENCE
-# =============================
-
-st.subheader("📦 Inventory Intelligence")
-
-product_sales = (
-    df.groupby("Product")["Quantity"]
-    .sum()
-    .sort_values(ascending=False)
-)
-
-st.write("Top Selling Products")
-
-st.dataframe(product_sales.head(10))
-
-
-# =============================
-# PROFIT MARGIN ANALYSIS
-# =============================
-
-st.subheader("💰 Profit Margin Analysis")
-
-df["Profit"] = df["Amount"] - (df["Quantity"] * df["Cost"])
-
-profit_products = (
-    df.groupby("Product")["Profit"]
-    .sum()
-    .sort_values(ascending=False)
-)
-
-fig = px.bar(
-    profit_products.head(10).reset_index(),
-    x="Product",
-    y="Profit",
-    title="Top Profit Generating Products"
-)
-
-st.plotly_chart(fig,use_container_width=True)
-
-
-# =============================
-# CUSTOMER BUYING PATTERNS
-# =============================
-
-st.subheader("📉 Customer Buying Patterns")
-
-customer_patterns = (
-    df.groupby(["Customer","Category"])["Amount"]
-    .sum()
-    .reset_index()
-)
-
-fig = px.sunburst(
-    customer_patterns,
-    path=["Customer","Category"],
-    values="Amount"
-)
-
-st.plotly_chart(fig,use_container_width=True)
-
-
 # =============================
 # REORDER ALERTS
 # =============================
@@ -272,56 +284,53 @@ avg_sales = (
     .mean()
 )
 
-low_stock_products = avg_sales[avg_sales > avg_sales.mean()].head(5)
+alerts = avg_sales.sort_values(ascending=False).head(5)
 
-st.write("Recommended Reorder Products")
-
-st.dataframe(low_stock_products)
-
+st.dataframe(alerts)
 
 # =============================
-# DEMAND FORECAST
+# AI INSIGHTS PANEL
 # =============================
 
-st.subheader("🔮 Demand Forecast")
+st.subheader("🤖 AI Business Insights")
 
-forecast = (
-    df.groupby("Product")["Amount"]
-    .mean()
-    .sort_values(ascending=False)
-    .head(10)
+summary = df.head(200).to_csv(index=False)
+
+prompt = f"""
+You are a textile business analyst.
+
+Here is sales data:
+
+{summary}
+
+Provide 5 key business insights.
+"""
+
+response = client.chat.completions.create(
+    model="openrouter/auto",
+    messages=[{"role":"user","content":prompt}]
 )
 
-fig = px.bar(
-    forecast.reset_index(),
-    x="Product",
-    y="Amount",
-    title="Predicted High Demand Products"
-)
-
-st.plotly_chart(fig,use_container_width=True)
-
+st.write(response.choices[0].message.content)
 
 # =============================
 # AI BUSINESS ASSISTANT
 # =============================
 
-st.subheader("🤖 Ask AI About Your Business")
+st.subheader("💬 Ask AI About Your Business")
 
-question = st.text_input("Example: Who are my top customers?")
+question = st.text_input("Example: Which customers contribute most revenue?")
 
 if question:
 
-    sample_data = df.head(200).to_csv(index=False)
-
     prompt = f"""
-You are a textile business analyst.
+You are a textile business consultant.
 
-Here is sample sales data:
+Data sample:
 
-{sample_data}
+{summary}
 
-Answer the question clearly:
+Answer this question:
 
 {question}
 """
